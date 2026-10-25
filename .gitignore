@@ -10,3 +10,9 @@ build/
 .frames/
 config.toml
 results.json
+*.png
+*.jpg
+*.jpeg
+*.mp4
+*.mov
+*.avi
