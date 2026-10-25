@@ -19,6 +19,14 @@ from decision_video.video import extract_frames, frame_to_base64
 logger = logging.getLogger(__name__)
 
 
+def format_timestamp(seconds: float) -> str:
+    """Format a timestamp in seconds as hh:mm:ss."""
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = seconds % 60
+    return f"{hours:02d}:{minutes:02d}:{secs:06.3f}"
+
+
 class AnalysisResult:
     """A single matched timestamp from the analysis."""
 
@@ -43,7 +51,7 @@ class AnalysisResult:
         }
 
     def to_text_line(self) -> str:
-        return f"{self.timestamp:.3f}s  (frame {self.frame_number}, prob={self.probability:.4f})"
+        return f"{format_timestamp(self.timestamp)}  (frame {self.frame_number}, prob={self.probability:.4f})"
 
 
 def analyze_video(
