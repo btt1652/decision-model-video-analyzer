@@ -75,6 +75,11 @@ def analyze(
         "--end",
         help="End timestamp in seconds (stop analyzing after this)",
     ),
+    batch_size: int = typer.Option(
+        2,
+        "--batch-size",
+        help="Number of frames per batch (1-4, default 2). Higher = fewer API calls.",
+    ),
 ):
     """Analyze a video and find frame timestamps matching the decision criteria."""
     cfg = load_config(config)
@@ -89,6 +94,7 @@ def analyze(
     typer.echo(f"Using model: {cfg.ollama.model}")
     typer.echo(f"Video: {video_path}")
     typer.echo(f"Frame interval: {cfg.video.frame_interval}s")
+    typer.echo(f"Batch size: {batch_size} frames")
     typer.echo(f"Threshold: {cfg.analysis.threshold}")
     typer.echo(f"Questions: {[q['key'] for q in cfg.analysis.questions]}")
     typer.echo(f"Output: {cfg.analysis.output}")
@@ -101,6 +107,7 @@ def analyze(
         output_format=output_format,
         start_time=start,
         end_time=end,
+        batch_size=batch_size,
     )
 
     typer.echo(f"Results written to {cfg.analysis.output}")

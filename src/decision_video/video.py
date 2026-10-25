@@ -95,12 +95,6 @@ def extract_frames(
                     logger.info("Extracted %d frames from video", count)
                     return
 
-                # Stop yielding frames after end_time
-                if end_time is not None and timestamp > end_time:
-                    cap.release()
-                    logger.info("Extracted %d frames from video", count)
-                    return
-
                 entry: dict[str, Any] = {
                     "timestamp": round(timestamp, 3),
                     "frame_number": frame_idx,
@@ -133,3 +127,55 @@ def frame_to_base64(image_bytes: bytes) -> str:
     import base64
 
     return base64.b64encode(image_bytes).decode("ascii")
+
+
+def extract_frame_batches(
+    video_path: str,
+    interval_seconds: float = 1.0,
+    batch_size: int = 2,
+    output_dir: str | None = None,
+    start_time: float | None = None,
+    end_time: float | None = None,
+) -> Iterator[list[dict[str, Any]]]:
+    """Yield batches of frames from a video at a given interval.
+
+    Each yielded item is a list of frames (up to batch_size).
+    This reduces the number of API calls by sending multiple frames
+    per request instead of one at a time.
+
+    Args:
+        video_path: Path to the video file
+        interval_seconds: Seconds between sampled frames
+        batch_size: Number of frames per batch (max 4 for Ollama)
+        output_dir: Optional directory to save individual frames
+        start_time: Optional start timestamp in seconds
+        end_time: Optional end timestamp in seconds
+
+    Returns:
+        Iterator of frame batches, where each batch is a list of frame dicts
+    """
+    if batch_size < 1:
+        raise ValueError("batch_size must be >= 1")
+    if batch_size > 4:
+        logger.warning("batch_size > 4 will be capped at 4 (Ollama limit)")
+        batch_size = 4
+
+    # Collect frames into batches
+    current_batch: list[dict[str, Any]] = []
+
+    for frame in extract_frames(
+        video_path=video_path,
+        interval_seconds=interval_seconds,
+        output_dir=output_dir,
+        start_time=start_time,
+        end_time=end_time,
+    ):
+        current_batch.append(frame)
+
+        if len(current_batch) == batch_size:
+            yield current_batch
+            current_batch = []
+
+    # Yield remaining frames if any
+    if current_batch:
+        yield current_batch

@@ -14,7 +14,7 @@ from decision_video.ollama import (
     get_noul_probability,
     send_request,
 )
-from decision_video.video import extract_frames, frame_to_base64
+from decision_video.video import extract_frame_batches, frame_to_base64
 
 logger = logging.getLogger(__name__)
 
@@ -61,12 +61,13 @@ def analyze_video(
     output_format: str = "text",
     start_time: float | None = None,
     end_time: float | None = None,
+    batch_size: int = 2,
 ) -> list[AnalysisResult]:
     """Run the full analysis pipeline on a video.
 
-    1. Extract frames at the configured interval
-    2. For each frame, send the frame image + state context to Ollama
-    3. Collect frames where the noul probability exceeds the threshold
+    1. Extract frames in batches at the configured interval
+    2. For each batch, send all frames + state context to Ollama
+    3. Collect timestamps where the noul probability exceeds the threshold
 
     If output_path is provided, matches are written to the file
     incrementally as they are found.
@@ -90,35 +91,44 @@ def analyze_video(
     results: list[AnalysisResult] = []
     match_count = 0
 
-    for frame in extract_frames(
+    for batch in extract_frame_batches(
         video_path=video_path,
         interval_seconds=config.video.frame_interval,
+        batch_size=batch_size,
         output_dir=config.video.frames_dir or None,
         start_time=start_time,
         end_time=end_time,
     ):
         logger.debug(
-            "Analyzing frame %d at %s",
-            frame["frame_number"],
-            format_timestamp(frame["timestamp"]),
+            "Analyzing batch of %d frames at %s",
+            len(batch),
+            format_timestamp(batch[0]["timestamp"]),
         )
 
-        # Build per-frame state: combine context with timestamp info
-        frame_state = state_context
+        # Build batch state: include all frame timestamps
+        batch_state = state_context
         if state_context:
-            frame_state += "\n"
-        frame_state += f"Frame timestamp: {frame['timestamp']}s, frame number: {frame['frame_number']}"
+            batch_state += "\n"
+        timestamps = ", ".join(
+            f"{f['timestamp']}s (frame {f['frame_number']})" for f in batch
+        )
+        batch_state += f"Frames: {timestamps}"
 
-        # Prepare the request with the frame image as base64
+        # Prepare the request with all batch frames as images
         request = build_request(
             model=config.ollama.model,
-            state=frame_state,
+            state=batch_state,
             questions=config.analysis.questions,
         )
 
-        # Add the image if available
-        if frame.get("image_bytes"):
-            request.images = [frame_to_base64(frame["image_bytes"])]
+        # Add all images from the batch
+        batch_images = [
+            frame_to_base64(f["image_bytes"])
+            for f in batch
+            if f.get("image_bytes")
+        ]
+        if batch_images:
+            request.images = batch_images
 
         try:
             response = send_request(
@@ -127,50 +137,62 @@ def analyze_video(
                 timeout=config.ollama.timeout,
             )
         except OllamaError as e:
-            logger.warning("Ollama request failed for frame %d: %s", frame["frame_number"], e.message)
+            logger.warning(
+                "Ollama request failed for batch starting at %s: %s",
+                format_timestamp(batch[0]["timestamp"]),
+                e.message,
+            )
             continue
 
-        frame_matched = False
-
-        # Check each noul question for matches
+        # Process each question in the batch
         for q in config.analysis.questions:
             key = q["key"]
             try:
                 prob = get_noul_probability(response, key)
             except (KeyError, TypeError) as e:
-                logger.warning("Skipping question '%s' for frame %d: %s", key, frame["frame_number"], e)
+                logger.warning(
+                    "Skipping question '%s' for batch starting at %s: %s",
+                    key,
+                    format_timestamp(batch[0]["timestamp"]),
+                    e,
+                )
                 continue
 
             if prob >= config.analysis.threshold:
+                # Record match for the first frame in the batch
+                first_frame = batch[0]
                 result = AnalysisResult(
-                    timestamp=frame["timestamp"],
-                    frame_number=frame["frame_number"],
+                    timestamp=first_frame["timestamp"],
+                    frame_number=first_frame["frame_number"],
                     probability=prob,
                     question_key=key,
                 )
                 results.append(result)
                 match_count += 1
-                frame_matched = True
                 logger.debug(
-                    "  MATCH at %s (probability: %.4f)",
+                    "  BATCH MATCH at %s (probability: %.4f)",
                     format_timestamp(result.timestamp),
                     result.probability,
                 )
 
-        # Live write: start or end of range
-        if out_file is not None:
-            if frame_matched and not in_range:
-                out_file.write(f"{format_timestamp(frame['timestamp'])}  true\n")
-                out_file.flush()
-                in_range = True
-            elif not frame_matched and in_range:
-                out_file.write(f"{format_timestamp(frame['timestamp'])}  false\n")
-                out_file.flush()
-                in_range = False
+                # Live write: start or end of range
+                if out_file is not None:
+                    if not in_range:
+                        out_file.write(f"{format_timestamp(result.timestamp)}  true\n")
+                        out_file.flush()
+                        in_range = True
+            else:
+                # No match in this batch - close any open range
+                if out_file is not None and in_range:
+                    last_ts = batch[-1]["timestamp"] + config.video.frame_interval
+                    out_file.write(f"{format_timestamp(last_ts)}  false\n")
+                    out_file.flush()
+                    in_range = False
 
     # Close any open range at end of video
-    if out_file is not None and in_range:
-        out_file.write(f"{format_timestamp(frame['timestamp'])}  false\n")
+    if out_file is not None and in_range and batch:
+        last_ts = batch[-1]["timestamp"] + config.video.frame_interval
+        out_file.write(f"{format_timestamp(last_ts)}  false\n")
         out_file.close()
 
     logger.info("Analysis complete: %d matches found", len(results))
