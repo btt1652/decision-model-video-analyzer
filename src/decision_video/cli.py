@@ -157,12 +157,14 @@ def query(
         build_request,
         send_request,
         get_noul_probability,
-        frame_to_base64,
     )
+    from decision_video.video import frame_to_base64
     from PIL import Image
 
-    # Read and encode the image
+    # Read and encode the image (convert RGBA to RGB for JPEG)
     img = Image.open(image)
+    if img.mode == "RGBA":
+        img = img.convert("RGB")
     buffer = io.BytesIO()
     img.save(buffer, format="JPEG", quality=85)
     image_bytes = buffer.getvalue()
