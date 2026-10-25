@@ -82,20 +82,14 @@ def analyze(
     typer.echo(f"Output: {cfg.analysis.output}")
     typer.echo("")
 
-    results = analyze_video(cfg, video_path=video_path)
+    results = analyze_video(
+        cfg,
+        video_path=video_path,
+        output_path=cfg.analysis.output,
+        output_format=output_format,
+    )
 
-    # Output results
-    out_path = Path(cfg.analysis.output)
-    if output_format == "json":
-        data = [r.to_dict() for r in results]
-        out_path.write_text(json.dumps(data, indent=2))
-    else:
-        lines = [
-            f"{r.timestamp:.3f}s  (frame {r.frame_number}, prob={r.probability:.4f})"
-            for r in results
-        ]
-        out_path.write_text("\n".join(lines))
-    typer.echo(f"Results written to {out_path}")
+    typer.echo(f"Results written to {cfg.analysis.output}")
 
 
 @app.command()

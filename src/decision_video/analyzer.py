@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import logging
+from pathlib import Path
 from typing import Any
 
 from decision_video.config import AppConfig
@@ -40,19 +42,38 @@ class AnalysisResult:
             "question_key": self.question_key,
         }
 
+    def to_text_line(self) -> str:
+        return f"{self.timestamp:.3f}s  (frame {self.frame_number}, prob={self.probability:.4f})"
 
-def analyze_video(config: AppConfig, video_path: str) -> list[AnalysisResult]:
+
+def analyze_video(
+    config: AppConfig,
+    video_path: str,
+    output_path: str | None = None,
+    output_format: str = "text",
+) -> list[AnalysisResult]:
     """Run the full analysis pipeline on a video.
 
     1. Extract frames at the configured interval
     2. For each frame, send the frame image + state context to Ollama
     3. Collect frames where the noul probability exceeds the threshold
+
+    If output_path is provided, matches are written to the file
+    incrementally as they are found.
     """
     if not video_path:
         raise ValueError("No video path provided")
 
     if not config.analysis.questions:
         raise ValueError("No analysis questions configured")
+
+    # Open output file for incremental writing if requested
+    out_file: Any = None
+    if output_path:
+        out_path = Path(output_path)
+        out_file = out_path.open("w", encoding="utf-8")
+        if output_format == "json":
+            out_file.write("[\n")
 
     # Build the base state context
     state_context = config.state.context or ""
@@ -66,6 +87,7 @@ def analyze_video(config: AppConfig, video_path: str) -> list[AnalysisResult]:
 
     results: list[AnalysisResult] = []
     total = len(frames)
+    match_count = 0
 
     for i, frame in enumerate(frames):
         logger.info(
@@ -119,11 +141,27 @@ def analyze_video(config: AppConfig, video_path: str) -> list[AnalysisResult]:
                     question_key=key,
                 )
                 results.append(result)
+                match_count += 1
                 logger.info(
                     "  MATCH at %.3fs (probability: %.4f)",
                     result.timestamp,
                     result.probability,
                 )
+
+                # Write incrementally to output file
+                if out_file is not None:
+                    if output_format == "json":
+                        prefix = ",\n" if match_count > 1 else ""
+                        out_file.write(f"{prefix}{json.dumps(result.to_dict(), indent=2)}")
+                    else:
+                        out_file.write(result.to_text_line() + "\n")
+                    out_file.flush()
+
+    # Close JSON array if applicable
+    if out_file is not None:
+        if output_format == "json":
+            out_file.write("\n]\n")
+        out_file.close()
 
     logger.info("Analysis complete: %d matches found", len(results))
     return results
