@@ -20,8 +20,8 @@ frames_dir = ""
 [analysis]
 # Minimum probability threshold for a "true" noul result to count as a match
 threshold = 0.7
-# Output file for results (JSON). Empty string prints to stdout.
-output = ""
+# Output file for results. Empty string prints to stdout.
+output = "results.txt"
 
 [[analysis.questions]]
 # Unique key for this question

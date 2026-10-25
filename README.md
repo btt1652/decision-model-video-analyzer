@@ -64,9 +64,28 @@ dv-analyze config --config config.toml --show
 
 ## Output
 
-Results are printed to stdout (JSON or text format) or written to a file if `analysis.output` is set in the config.
+Results are written to a text file (`results.txt` by default) with one matching timestamp per line:
 
-JSON output example:
+```
+12.500s  (frame 375, prob=0.9421)
+25.000s  (frame 750, prob=0.8734)
+```
+
+To override the output file or format, use CLI flags:
+
+```bash
+dv-analyze analyze --output my_results.txt --format text
+```
+
+To output JSON to a file instead:
+
+```bash
+dv-analyze analyze --output results.json --format json
+```
+
+To print to stdout instead of a file, set `output = ""` in the config.
+
+JSON output example (when using `--format json`):
 
 ```json
 [

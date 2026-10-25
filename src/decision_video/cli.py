@@ -57,10 +57,10 @@ def analyze(
         help="Override output file path (overrides config setting)",
     ),
     output_format: Literal["json", "text"] = typer.Option(
-        "json",
+        "text",
         "--format",
         "-f",
-        help="Output format",
+        help="Output format (only used when writing to a file)",
     ),
 ):
     """Analyze a video and find frame timestamps matching the decision criteria."""
