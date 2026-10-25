@@ -75,7 +75,7 @@ def analyze(
         cfg.analysis.output = f"{video_stem}_ts.txt"
 
     typer.echo(f"Using model: {cfg.ollama.model}")
-    typer.echo(f"Video: {cfg.video.input_path}")
+    typer.echo(f"Video: {video_path}")
     typer.echo(f"Frame interval: {cfg.video.frame_interval}s")
     typer.echo(f"Threshold: {cfg.analysis.threshold}")
     typer.echo(f"Questions: {[q['key'] for q in cfg.analysis.questions]}")
