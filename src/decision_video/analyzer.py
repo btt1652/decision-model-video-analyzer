@@ -23,8 +23,8 @@ def format_timestamp(seconds: float) -> str:
     """Format a timestamp in seconds as hh:mm:ss."""
     hours = int(seconds // 3600)
     minutes = int((seconds % 3600) // 60)
-    secs = seconds % 60
-    return f"{hours:02d}:{minutes:02d}:{secs:06.3f}"
+    secs = int(seconds % 60)
+    return f"{hours:02d}:{minutes:02d}:{secs:02d}"
 
 
 class AnalysisResult:
@@ -54,53 +54,6 @@ class AnalysisResult:
         return f"{format_timestamp(self.timestamp)}  (frame {self.frame_number}, prob={self.probability:.4f})"
 
 
-def group_consecutive_results(results: list[AnalysisResult]) -> list[dict[str, Any]]:
-    """Group consecutive matching frames into time ranges.
-
-    Consecutive means frames follow each other without gaps
-    (i.e., the frame numbers are sequential based on the interval).
-    Returns a list of dicts with 'start', 'end', and 'max_prob'.
-    """
-    if not results:
-        return []
-
-    # Sort by timestamp
-    sorted_results = sorted(results, key=lambda r: r.timestamp)
-
-    groups: list[dict[str, Any]] = []
-    current_group = {
-        "start": sorted_results[0],
-        "end": sorted_results[0],
-        "max_prob": sorted_results[0].probability,
-    }
-
-    for result in sorted_results[1:]:
-        # Check if this frame is consecutive with the previous one
-        # (frame numbers should differ by the interval step)
-        if result.frame_number == current_group["end"].frame_number + 1:
-            current_group["end"] = result
-            current_group["max_prob"] = max(current_group["max_prob"], result.probability)
-        else:
-            groups.append(current_group)
-            current_group = {
-                "start": result,
-                "end": result,
-                "max_prob": result.probability,
-            }
-
-    groups.append(current_group)
-    return groups
-
-
-def format_range(group: dict[str, Any]) -> str:
-    """Format a group of consecutive matches as a time range."""
-    start = group["start"]
-    end = group["end"]
-    if start.frame_number == end.frame_number:
-        return f"{format_timestamp(start.timestamp)}  (frame {start.frame_number}, prob={start.probability:.4f})"
-    return f"{format_timestamp(start.timestamp)} - {format_timestamp(end.timestamp)}  (frames {start.frame_number}-{end.frame_number}, max_prob={group['max_prob']:.4f})"
-
-
 def analyze_video(
     config: AppConfig,
     video_path: str,
@@ -122,13 +75,12 @@ def analyze_video(
     if not config.analysis.questions:
         raise ValueError("No analysis questions configured")
 
-    # Open output file for incremental writing if requested
+    # Open output file for live range writing if requested
     out_file: Any = None
+    in_range = False
     if output_path:
         out_path = Path(output_path)
         out_file = out_path.open("w", encoding="utf-8")
-        if output_format == "json":
-            out_file.write("[\n")
 
     # Build the base state context
     state_context = config.state.context or ""
@@ -174,6 +126,8 @@ def analyze_video(
             logger.warning("Ollama request failed for frame %d: %s", frame["frame_number"], e.message)
             continue
 
+        frame_matched = False
+
         # Check each noul question for matches
         for q in config.analysis.questions:
             key = q["key"]
@@ -192,22 +146,27 @@ def analyze_video(
                 )
                 results.append(result)
                 match_count += 1
+                frame_matched = True
                 logger.debug(
                     "  MATCH at %s (probability: %.4f)",
                     format_timestamp(result.timestamp),
                     result.probability,
                 )
 
+        # Live write: start or end of range
+        if out_file is not None:
+            if frame_matched and not in_range:
+                out_file.write(f"{format_timestamp(frame['timestamp'])}  true\n")
+                out_file.flush()
+                in_range = True
+            elif not frame_matched and in_range:
+                out_file.write(f"{format_timestamp(frame['timestamp'])}  false\n")
+                out_file.flush()
+                in_range = False
 
-
-    # Write grouped results to output file
-    if out_file is not None:
-        groups = group_consecutive_results(results)
-        if output_format == "json":
-            out_file.write(json.dumps([g["start"].to_dict() for g in groups], indent=2))
-        else:
-            for group in groups:
-                out_file.write(format_range(group) + "\n")
+    # Close any open range at end of video
+    if out_file is not None and in_range:
+        out_file.write(f"{format_timestamp(frame['timestamp'])}  false\n")
         out_file.close()
 
     logger.info("Analysis complete: %d matches found", len(results))
