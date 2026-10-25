@@ -29,6 +29,8 @@ def set_verbosity(verbose: bool):
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
+    # Suppress urllib3 HTTP debug logs (connection pooling, request details)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 
 @app.callback()

@@ -54,6 +54,53 @@ class AnalysisResult:
         return f"{format_timestamp(self.timestamp)}  (frame {self.frame_number}, prob={self.probability:.4f})"
 
 
+def group_consecutive_results(results: list[AnalysisResult]) -> list[dict[str, Any]]:
+    """Group consecutive matching frames into time ranges.
+
+    Consecutive means frames follow each other without gaps
+    (i.e., the frame numbers are sequential based on the interval).
+    Returns a list of dicts with 'start', 'end', and 'max_prob'.
+    """
+    if not results:
+        return []
+
+    # Sort by timestamp
+    sorted_results = sorted(results, key=lambda r: r.timestamp)
+
+    groups: list[dict[str, Any]] = []
+    current_group = {
+        "start": sorted_results[0],
+        "end": sorted_results[0],
+        "max_prob": sorted_results[0].probability,
+    }
+
+    for result in sorted_results[1:]:
+        # Check if this frame is consecutive with the previous one
+        # (frame numbers should differ by the interval step)
+        if result.frame_number == current_group["end"].frame_number + 1:
+            current_group["end"] = result
+            current_group["max_prob"] = max(current_group["max_prob"], result.probability)
+        else:
+            groups.append(current_group)
+            current_group = {
+                "start": result,
+                "end": result,
+                "max_prob": result.probability,
+            }
+
+    groups.append(current_group)
+    return groups
+
+
+def format_range(group: dict[str, Any]) -> str:
+    """Format a group of consecutive matches as a time range."""
+    start = group["start"]
+    end = group["end"]
+    if start.frame_number == end.frame_number:
+        return f"{format_timestamp(start.timestamp)}  (frame {start.frame_number}, prob={start.probability:.4f})"
+    return f"{format_timestamp(start.timestamp)} - {format_timestamp(end.timestamp)}  (frames {start.frame_number}-{end.frame_number}, max_prob={group['max_prob']:.4f})"
+
+
 def analyze_video(
     config: AppConfig,
     video_path: str,
@@ -94,10 +141,10 @@ def analyze_video(
         interval_seconds=config.video.frame_interval,
         output_dir=config.video.frames_dir or None,
     ):
-        logger.info(
-            "Analyzing frame %d at %.3fs",
+        logger.debug(
+            "Analyzing frame %d at %s",
             frame["frame_number"],
-            frame["timestamp"],
+            format_timestamp(frame["timestamp"]),
         )
 
         # Build per-frame state: combine context with timestamp info
@@ -145,25 +192,22 @@ def analyze_video(
                 )
                 results.append(result)
                 match_count += 1
-                logger.info(
-                    "  MATCH at %.3fs (probability: %.4f)",
-                    result.timestamp,
+                logger.debug(
+                    "  MATCH at %s (probability: %.4f)",
+                    format_timestamp(result.timestamp),
                     result.probability,
                 )
 
-                # Write incrementally to output file
-                if out_file is not None:
-                    if output_format == "json":
-                        prefix = ",\n" if match_count > 1 else ""
-                        out_file.write(f"{prefix}{json.dumps(result.to_dict(), indent=2)}")
-                    else:
-                        out_file.write(result.to_text_line() + "\n")
-                    out_file.flush()
 
-    # Close JSON array if applicable
+
+    # Write grouped results to output file
     if out_file is not None:
+        groups = group_consecutive_results(results)
         if output_format == "json":
-            out_file.write("\n]\n")
+            out_file.write(json.dumps([g["start"].to_dict() for g in groups], indent=2))
+        else:
+            for group in groups:
+                out_file.write(format_range(group) + "\n")
         out_file.close()
 
     logger.info("Analysis complete: %d matches found", len(results))

@@ -75,7 +75,7 @@ def send_request(
     """Send a request to the Ollama Decision API and return the parsed response."""
     body = request.model_dump(mode="json", exclude_none=True)
 
-    logger.debug("Sending request to %s: %s", api_url, body)
+    # logger.debug("Sending request to %s (model=%s, questions=%s)", api_url, request.model, list(request.questions.keys()))
 
     try:
         response = requests.post(
