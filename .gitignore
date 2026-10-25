@@ -10,6 +10,7 @@ build/
 .frames/
 config.toml
 results.json
+*_ts.txt
 *.png
 *.jpg
 *.jpeg
