@@ -78,22 +78,17 @@ def analyze_video(
     # Build the base state context
     state_context = config.state.context or ""
 
-    # Extract frames
-    frames = extract_frames(
+    results: list[AnalysisResult] = []
+    match_count = 0
+
+    for frame in extract_frames(
         video_path=video_path,
         interval_seconds=config.video.frame_interval,
         output_dir=config.video.frames_dir or None,
-    )
-
-    results: list[AnalysisResult] = []
-    total = len(frames)
-    match_count = 0
-
-    for i, frame in enumerate(frames):
+    ):
         logger.info(
-            "Analyzing frame %d/%d at %.3fs",
-            i + 1,
-            total,
+            "Analyzing frame %d at %.3fs",
+            frame["frame_number"],
             frame["timestamp"],
         )
 

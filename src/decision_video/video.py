@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 import cv2
 
@@ -15,14 +15,18 @@ def extract_frames(
     video_path: str,
     interval_seconds: float = 1.0,
     output_dir: str | None = None,
-) -> list[dict[str, Any]]:
-    """Extract frames from a video at a given interval.
+) -> Iterator[dict[str, Any]]:
+    """Yield frames from a video at a given interval.
 
-    Returns a list of dicts with keys:
+    Each yielded dict has keys:
       - timestamp: float (seconds)
       - frame_number: int
       - image_path: str | None (if output_dir is set)
       - image_bytes: bytes | None (raw JPEG bytes for API submission)
+
+    Frames are yielded one at a time instead of being collected into a list,
+    so memory usage stays low for large videos and downstream processing can
+    start immediately.
     """
     video_path = str(video_path)
     cap = cv2.VideoCapture(video_path)
@@ -44,43 +48,45 @@ def extract_frames(
 
     interval_frames = max(1, int(round(fps * interval_seconds)))
     frame_idx = 0
-    results: list[dict[str, Any]] = []
+    count = 0
 
     output_path = Path(output_dir) if output_dir else None
     if output_path and not output_path.exists():
         output_path.mkdir(parents=True, exist_ok=True)
 
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
+    try:
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
 
-        if frame_idx % interval_frames == 0:
-            timestamp = frame_idx / fps if fps > 0 else 0.0
-            entry: dict[str, Any] = {
-                "timestamp": round(timestamp, 3),
-                "frame_number": frame_idx,
-                "image_path": None,
-                "image_bytes": None,
-            }
+            if frame_idx % interval_frames == 0:
+                timestamp = frame_idx / fps if fps > 0 else 0.0
+                entry: dict[str, Any] = {
+                    "timestamp": round(timestamp, 3),
+                    "frame_number": frame_idx,
+                    "image_path": None,
+                    "image_bytes": None,
+                }
 
-            if output_path is not None:
-                img_path = output_path / f"frame_{frame_idx:06d}.jpg"
-                cv2.imwrite(str(img_path), frame)
-                entry["image_path"] = str(img_path)
+                if output_path is not None:
+                    img_path = output_path / f"frame_{frame_idx:06d}.jpg"
+                    cv2.imwrite(str(img_path), frame)
+                    entry["image_path"] = str(img_path)
 
-            # Encode frame as JPEG bytes for Ollama API
-            success, buffer = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
-            if success:
-                entry["image_bytes"] = buffer.tobytes()
+                # Encode frame as JPEG bytes for Ollama API
+                success, buffer = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+                if success:
+                    entry["image_bytes"] = buffer.tobytes()
 
-            results.append(entry)
+                count += 1
+                yield entry
 
-        frame_idx += 1
+            frame_idx += 1
+    finally:
+        cap.release()
 
-    cap.release()
-    logger.info("Extracted %d frames from video", len(results))
-    return results
+    logger.info("Extracted %d frames from video", count)
 
 
 def frame_to_base64(image_bytes: bytes) -> str:
