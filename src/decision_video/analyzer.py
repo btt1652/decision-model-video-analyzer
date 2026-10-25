@@ -41,15 +41,15 @@ class AnalysisResult:
         }
 
 
-def analyze_video(config: AppConfig) -> list[AnalysisResult]:
+def analyze_video(config: AppConfig, video_path: str) -> list[AnalysisResult]:
     """Run the full analysis pipeline on a video.
 
     1. Extract frames at the configured interval
     2. For each frame, send the frame image + state context to Ollama
     3. Collect frames where the noul probability exceeds the threshold
     """
-    if not config.video.input_path:
-        raise ValueError("No video input path configured")
+    if not video_path:
+        raise ValueError("No video path provided")
 
     if not config.analysis.questions:
         raise ValueError("No analysis questions configured")
@@ -59,7 +59,7 @@ def analyze_video(config: AppConfig) -> list[AnalysisResult]:
 
     # Extract frames
     frames = extract_frames(
-        video_path=config.video.input_path,
+        video_path=video_path,
         interval_seconds=config.video.frame_interval,
         output_dir=config.video.frames_dir or None,
     )

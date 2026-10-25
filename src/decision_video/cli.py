@@ -44,6 +44,7 @@ def main(
 
 @app.command()
 def analyze(
+    video_path: str = typer.Argument(..., help="Path to the video file to analyze"),
     config: str = typer.Option(
         "config.toml",
         "--config",
@@ -54,7 +55,7 @@ def analyze(
         None,
         "--output",
         "-o",
-        help="Override output file path (overrides config setting)",
+        help="Override output file path (overrides auto-derived name)",
     ),
     output_format: Literal["json", "text"] = typer.Option(
         "text",
@@ -66,11 +67,11 @@ def analyze(
     """Analyze a video and find frame timestamps matching the decision criteria."""
     cfg = load_config(config)
 
-    # Determine output path: CLI flag > config > derive from video filename
+    # Determine output path: CLI flag > auto-derive from video filename
     if output:
         cfg.analysis.output = output
-    elif not cfg.analysis.output:
-        video_stem = Path(cfg.video.input_path).stem
+    else:
+        video_stem = Path(video_path).stem
         cfg.analysis.output = f"{video_stem}_ts.txt"
 
     typer.echo(f"Using model: {cfg.ollama.model}")
@@ -81,7 +82,7 @@ def analyze(
     typer.echo(f"Output: {cfg.analysis.output}")
     typer.echo("")
 
-    results = analyze_video(cfg)
+    results = analyze_video(cfg, video_path=video_path)
 
     # Output results
     out_path = Path(cfg.analysis.output)
@@ -99,6 +100,7 @@ def analyze(
 
 @app.command()
 def extract_frames(
+    video_path: str = typer.Argument(..., help="Path to the video file"),
     config: str = typer.Option(
         "config.toml",
         "--config",
@@ -115,14 +117,10 @@ def extract_frames(
     """Extract frames from a video at the configured interval."""
     cfg = load_config(config)
 
-    if not cfg.video.input_path:
-        typer.echo("Error: No video input path configured", err=True)
-        raise typer.Exit(code=1)
-
     from decision_video.video import extract_frames
 
     frames = extract_frames(
-        video_path=cfg.video.input_path,
+        video_path=video_path,
         interval_seconds=cfg.video.frame_interval,
         output_dir=output_dir,
     )

@@ -22,7 +22,6 @@ class OllamaConfig(BaseModel):
 
 
 class VideoConfig(BaseModel):
-    input_path: str = ""
     frame_interval: float = 1.0
     frames_dir: str = ""
 

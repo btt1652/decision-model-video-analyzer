@@ -39,15 +39,21 @@ Edit `config.toml` to set:
 ### Full analysis
 
 ```bash
-dv-analyze analyze --config config.toml
+dv-analyze analyze my_video.mp4
 ```
 
-Extract frames, send each to Ollama, and output matching timestamps.
+Extract frames, send each to Ollama, and output matching timestamps to `<video_name>_ts.txt`.
+
+### Full analysis with custom output
+
+```bash
+dv-analyze analyze my_video.mp4 --output results.txt
+```
 
 ### Extract frames only
 
 ```bash
-dv-analyze extract-frames --config config.toml --output-dir frames/
+dv-analyze extract-frames my_video.mp4 --output-dir frames/
 ```
 
 ### Query a single image

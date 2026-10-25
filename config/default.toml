@@ -10,8 +10,6 @@ api_url = "http://localhost:11434/v1/systemone"
 timeout = 120
 
 [video]
-# Path to the input video file
-input_path = ""
 # Interval in seconds between frames to analyze
 frame_interval = 1.0
 # Directory to save extracted frames (optional, for debugging)
