@@ -57,7 +57,23 @@ def extract_frames(
         logger.info("End time: %.1fs", end_time)
 
     interval_frames = max(1, int(round(fps * interval_seconds)))
-    frame_idx = 0
+    
+    # Seek to start_time if specified (jump directly instead of reading all frames)
+    if start_time is not None:
+        target_frame = int(start_time * fps)
+        logger.info("Seeking to frame %d (%.1fs)...", target_frame, start_time)
+        cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
+        # Verify seek succeeded
+        ret, _ = cap.read()
+        if ret:
+            frame_idx = int(cap.get(cv2.CAP_PROP_POS_FRAMES))
+            logger.info("Seeked to frame %d (%.3fs)", frame_idx, frame_idx / fps)
+        else:
+            logger.warning("Seek failed, falling back to sequential read")
+            frame_idx = 0
+    else:
+        frame_idx = 0
+    
     count = 0
 
     output_path = Path(output_dir) if output_dir else None
@@ -73,10 +89,11 @@ def extract_frames(
             if frame_idx % interval_frames == 0:
                 timestamp = frame_idx / fps if fps > 0 else 0.0
 
-                # Skip frames before start_time
-                if start_time is not None and timestamp < start_time:
-                    frame_idx += 1
-                    continue
+                # Stop yielding frames after end_time
+                if end_time is not None and timestamp > end_time:
+                    cap.release()
+                    logger.info("Extracted %d frames from video", count)
+                    return
 
                 # Stop yielding frames after end_time
                 if end_time is not None and timestamp > end_time:
