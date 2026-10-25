@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "decision-video-analyzer"
+version = "0.1.0"
+description = "CLI app for finding video frame timestamps using a local Ollama decision model"
+requires-python = ">=3.10"
+dependencies = [
+    "typer>=0.9.0",
+    "opencv-python-headless>=4.8.0",
+    "requests>=2.31.0",
+    "tomli>=2.0.0",
+    "pydantic>=2.5.0",
+    "pillow>=10.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.4.0",
+]
+
+[project.scripts]
+dv-analyze = "decision_video.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

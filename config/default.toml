@@ -1,0 +1,40 @@
+# decision-video-analyzer configuration
+# See https://docs.ollama.com/capabilities/decision for question type reference
+
+[ollama]
+# Model name — must be a decision model pulled locally (e.g. d3:9b, nimble, clef)
+model = "d3:9b"
+# Ollama API endpoint for the Decision API
+api_url = "http://localhost:11434/v1/systemone"
+# Request timeout in seconds
+timeout = 120
+
+[video]
+# Path to the input video file
+input_path = ""
+# Interval in seconds between frames to analyze
+frame_interval = 1.0
+# Directory to save extracted frames (optional, for debugging)
+frames_dir = ""
+
+[analysis]
+# Minimum probability threshold for a "true" noul result to count as a match
+threshold = 0.7
+# Output file for results (JSON). Empty string prints to stdout.
+output = ""
+
+[[analysis.questions]]
+# Unique key for this question
+key = "moment_found"
+# Question type: "noul" (yes/no probability), "choice", or "score"
+type = "noul"
+# Instructions describe what to look for in the frame
+instructions = "Does this frame contain the specific moment being searched for?"
+# Criteria for noul type: descriptions for false and true outcomes
+criteria_false = "This frame does not contain the target moment"
+criteria_true = "This frame contains the target moment"
+
+[state]
+# Additional context about what to look for in the video
+# This is passed as the "state" field in the Ollama Decision API request
+context = ""
