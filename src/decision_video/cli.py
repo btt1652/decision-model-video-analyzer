@@ -65,6 +65,16 @@ def analyze(
         "-f",
         help="Output format (only used when writing to a file)",
     ),
+    start: Optional[float] = typer.Option(
+        None,
+        "--start",
+        help="Start timestamp in seconds (skip frames before this)",
+    ),
+    end: Optional[float] = typer.Option(
+        None,
+        "--end",
+        help="End timestamp in seconds (stop analyzing after this)",
+    ),
 ):
     """Analyze a video and find frame timestamps matching the decision criteria."""
     cfg = load_config(config)
@@ -89,6 +99,8 @@ def analyze(
         video_path=video_path,
         output_path=cfg.analysis.output,
         output_format=output_format,
+        start_time=start,
+        end_time=end,
     )
 
     typer.echo(f"Results written to {cfg.analysis.output}")

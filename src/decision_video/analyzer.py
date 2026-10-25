@@ -59,6 +59,8 @@ def analyze_video(
     video_path: str,
     output_path: str | None = None,
     output_format: str = "text",
+    start_time: float | None = None,
+    end_time: float | None = None,
 ) -> list[AnalysisResult]:
     """Run the full analysis pipeline on a video.
 
@@ -92,6 +94,8 @@ def analyze_video(
         video_path=video_path,
         interval_seconds=config.video.frame_interval,
         output_dir=config.video.frames_dir or None,
+        start_time=start_time,
+        end_time=end_time,
     ):
         logger.debug(
             "Analyzing frame %d at %s",

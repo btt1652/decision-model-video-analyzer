@@ -15,8 +15,10 @@ def extract_frames(
     video_path: str,
     interval_seconds: float = 1.0,
     output_dir: str | None = None,
+    start_time: float | None = None,
+    end_time: float | None = None,
 ) -> Iterator[dict[str, Any]]:
-    """Yield frames from a video at a given interval.
+    """Yield frames from a video at a given interval, optionally within a time range.
 
     Each yielded dict has keys:
       - timestamp: float (seconds)
@@ -27,6 +29,9 @@ def extract_frames(
     Frames are yielded one at a time instead of being collected into a list,
     so memory usage stays low for large videos and downstream processing can
     start immediately.
+
+    If start_time is set, frames before that timestamp are skipped.
+    If end_time is set, frames after that timestamp are not yielded.
     """
     video_path = str(video_path)
     cap = cv2.VideoCapture(video_path)
@@ -46,6 +51,11 @@ def extract_frames(
         duration,
     )
 
+    if start_time is not None:
+        logger.info("Start time: %.1fs", start_time)
+    if end_time is not None:
+        logger.info("End time: %.1fs", end_time)
+
     interval_frames = max(1, int(round(fps * interval_seconds)))
     frame_idx = 0
     count = 0
@@ -62,6 +72,18 @@ def extract_frames(
 
             if frame_idx % interval_frames == 0:
                 timestamp = frame_idx / fps if fps > 0 else 0.0
+
+                # Skip frames before start_time
+                if start_time is not None and timestamp < start_time:
+                    frame_idx += 1
+                    continue
+
+                # Stop yielding frames after end_time
+                if end_time is not None and timestamp > end_time:
+                    cap.release()
+                    logger.info("Extracted %d frames from video", count)
+                    return
+
                 entry: dict[str, Any] = {
                     "timestamp": round(timestamp, 3),
                     "frame_number": frame_idx,
