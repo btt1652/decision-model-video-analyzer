@@ -66,45 +66,35 @@ def analyze(
     """Analyze a video and find frame timestamps matching the decision criteria."""
     cfg = load_config(config)
 
-    # Override output if CLI flag is set
+    # Determine output path: CLI flag > config > derive from video filename
     if output:
         cfg.analysis.output = output
+    elif not cfg.analysis.output:
+        video_stem = Path(cfg.video.input_path).stem
+        cfg.analysis.output = f"{video_stem}_ts.txt"
 
     typer.echo(f"Using model: {cfg.ollama.model}")
     typer.echo(f"Video: {cfg.video.input_path}")
     typer.echo(f"Frame interval: {cfg.video.frame_interval}s")
     typer.echo(f"Threshold: {cfg.analysis.threshold}")
     typer.echo(f"Questions: {[q['key'] for q in cfg.analysis.questions]}")
+    typer.echo(f"Output: {cfg.analysis.output}")
     typer.echo("")
 
     results = analyze_video(cfg)
 
     # Output results
-    if cfg.analysis.output:
-        out_path = Path(cfg.analysis.output)
-        if output_format == "json":
-            data = [r.to_dict() for r in results]
-            out_path.write_text(json.dumps(data, indent=2))
-        else:
-            lines = [
-                f"{r.timestamp:.3f}s  (frame {r.frame_number}, prob={r.probability:.4f})"
-                for r in results
-            ]
-            out_path.write_text("\n".join(lines))
-        typer.echo(f"Results written to {out_path}")
+    out_path = Path(cfg.analysis.output)
+    if output_format == "json":
+        data = [r.to_dict() for r in results]
+        out_path.write_text(json.dumps(data, indent=2))
     else:
-        if output_format == "json":
-            data = [r.to_dict() for r in results]
-            typer.echo(json.dumps(data, indent=2))
-        else:
-            if not results:
-                typer.echo("No matching frames found.")
-            else:
-                typer.echo("Matching timestamps:")
-                for r in results:
-                    typer.echo(
-                        f"  {r.timestamp:.3f}s  (frame {r.frame_number}, prob={r.probability:.4f})"
-                    )
+        lines = [
+            f"{r.timestamp:.3f}s  (frame {r.frame_number}, prob={r.probability:.4f})"
+            for r in results
+        ]
+        out_path.write_text("\n".join(lines))
+    typer.echo(f"Results written to {out_path}")
 
 
 @app.command()

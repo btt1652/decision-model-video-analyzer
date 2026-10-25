@@ -21,7 +21,9 @@ frames_dir = ""
 # Minimum probability threshold for a "true" noul result to count as a match
 threshold = 0.7
 # Output file for results. Empty string prints to stdout.
-output = "results.txt"
+# If set to a placeholder like "{video}_ts.txt", it will be replaced
+# with the video filename (without extension) + "_ts.txt".
+output = ""
 
 [[analysis.questions]]
 # Unique key for this question
